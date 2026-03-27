@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pomodoro Timer</title>
+<meta name="theme-color" content="#2b1d0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pomodoro">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -805,6 +811,7 @@
     timeEl.textContent = formatTime(secondsLeft);
     const pct = secondsLeft / totalSeconds;
     ring.style.strokeDashoffset = CIRCUM * (1 - pct);
+    updateMediaSession();
     sessionEl.textContent = isBreak
       ? `Break after session ${currentSession}`
       : `Session ${currentSession} of ${totalSessions}`;
@@ -995,7 +1002,52 @@
       renderStats();
     }
   });
+
+  // ── SERVICE WORKER ────────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+
+  // ── SILENT AUDIO (keeps iOS session alive) ────────────────
+  const silentAudio = document.getElementById('silent-audio');
+  function startSilentAudio() {
+    silentAudio.play().catch(() => {});
+  }
+  // Start silent audio on first user interaction
+  document.addEventListener('click', () => startSilentAudio(), { once: true });
+
+  // ── MEDIA SESSION API (lock screen display) ───────────────
+  function updateMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    const phase = isBreak ? 'Break' : 'Work';
+    const mins  = Math.floor(secondsLeft / 60);
+    const secs  = secondsLeft % 60;
+    const timeStr = String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: timeStr + ' — ' + phase,
+      artist: isBreak ? 'Break time · Pomodoro' : 'Focus session · Pomodoro',
+      album: 'Session ' + currentSession + ' of ' + totalSessions,
+      artwork: [
+        { src: 'icon.png', sizes: '512x512', type: 'image/png' }
+      ]
+    });
+
+    navigator.mediaSession.playbackState = running ? 'playing' : 'paused';
+
+    navigator.mediaSession.setActionHandler('play',  () => { if (!running) start(); });
+    navigator.mediaSession.setActionHandler('pause', () => { if (running)  start(); });
+    navigator.mediaSession.setActionHandler('stop',  () => reset());
+  }
+
 </script>
 
+
+<!-- Silent audio loop keeps iOS audio session alive for lock screen -->
+<audio id="silent-audio" loop>
+  <source src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" type="audio/wav">
+</audio>
 </body>
 </html>
