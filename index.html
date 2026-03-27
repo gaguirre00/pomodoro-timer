@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro Timer</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #2b1d0e;
+    --bg2: #1e1308;
+    --ring-track: rgba(255,255,255,0.08);
+    --ring-work: #c8621a;
+    --ring-break: #b5954a;
+    --ring-glow-work: rgba(200,98,26,0.4);
+    --ring-glow-break: rgba(181,149,74,0.4);
+    --face: #f7efe0;
+    --number: #6b3a1f;
+    --label: #c8621a;
+    --label-break: #b5954a;
+    --shadow: rgba(0,0,0,0.5);
+    --title: rgba(247,239,224,0.6);
+    --btn-bg: rgba(255,255,255,0.06);
+    --btn-hover: rgba(255,255,255,0.12);
+    --btn-active-bg: #c8621a;
+    --btn-active-text: #fff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 700px;
+    height: 500px;
+    background: radial-gradient(ellipse at center, rgba(120,55,15,0.35) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 36px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+  }
+
+  .event-label {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    font-size: 11px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--ring-work);
+    margin-bottom: 10px;
+    opacity: 0.9;
+  }
+
+  .event-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    color: var(--face);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .divider {
+    width: 40px;
+    height: 1px;
+    background: var(--ring-work);
+    margin: 14px auto 0;
+    opacity: 0.6;
+    transition: background 0.4s;
+  }
+
+  /* Mode selector */
+  .mode-selector {
+    display: flex;
+    gap: 10px;
+  }
+
+  .mode-btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--face);
+    background: var(--btn-bg);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 40px;
+    padding: 8px 18px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    opacity: 0.7;
+  }
+
+  .mode-btn:hover {
+    background: var(--btn-hover);
+    opacity: 1;
+  }
+
+  .mode-btn.active {
+    background: var(--ring-work);
+    border-color: var(--ring-work);
+    color: #fff;
+    opacity: 1;
+  }
+
+  /* Main ring */
+  .main-ring-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .ring-container {
+    position: relative;
+    width: 220px;
+    height: 220px;
+  }
+
+  .ring-container svg {
+    width: 220px;
+    height: 220px;
+    transform: rotate(-90deg);
+  }
+
+  .ring-track {
+    fill: none;
+    stroke: var(--ring-track);
+    stroke-width: 6;
+  }
+
+  .ring-fill {
+    fill: none;
+    stroke: var(--ring-work);
+    stroke-width: 6;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1), stroke 0.4s;
+    filter: drop-shadow(0 0 5px var(--ring-glow-work));
+  }
+
+  .ring-fill.break-mode {
+    stroke: var(--ring-break);
+    filter: drop-shadow(0 0 5px var(--ring-glow-break));
+  }
+
+  .face {
+    position: absolute;
+    top: 12px; left: 12px;
+    width: 196px; height: 196px;
+    border-radius: 50%;
+    background: var(--face);
+    box-shadow: 0 12px 48px var(--shadow), 0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .phase-badge {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ring-work);
+    transition: color 0.4s;
+  }
+
+  .phase-badge.break-mode { color: var(--ring-break); }
+
+  .time-display {
+    font-family: 'Playfair Display', serif;
+    font-size: 56px;
+    font-weight: 700;
+    color: var(--number);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    transition: transform 0.2s ease;
+  }
+
+  .ring-container:hover .time-display {
+    transform: scale(1.04);
+  }
+
+  .session-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    color: rgba(26,107,98,0.6);
+    margin-top: 2px;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .ctrl-btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--face);
+    background: var(--btn-bg);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 40px;
+    padding: 10px 28px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    opacity: 0.8;
+  }
+
+  .ctrl-btn:hover { background: var(--btn-hover); opacity: 1; }
+  .ctrl-btn:active { transform: scale(0.97); }
+
+  .ctrl-btn.primary {
+    background: var(--ring-work);
+    border-color: var(--ring-work);
+    color: #fff;
+    opacity: 1;
+    padding: 12px 40px;
+    font-size: 12px;
+    transition: background 0.4s, border-color 0.4s, transform 0.1s;
+  }
+
+  .ctrl-btn.primary.break-mode {
+    background: var(--ring-break);
+    border-color: var(--ring-break);
+  }
+
+  .ctrl-btn.primary:hover { filter: brightness(1.1); }
+
+  /* Session dots */
+  .sessions-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .session-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    transition: background 0.3s, transform 0.3s;
+  }
+
+  .session-dot.done {
+    background: var(--ring-work);
+    transform: scale(1.1);
+  }
+
+  .session-dot.done.break-done {
+    background: var(--ring-break);
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+  }
+
+  .target-date {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    color: var(--title);
+  }
+
+  .target-date span {
+    color: var(--face);
+    font-weight: 500;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { filter: drop-shadow(0 0 4px var(--ring-glow-work)); }
+    50%       { filter: drop-shadow(0 0 10px var(--ring-glow-work)); }
+  }
+
+  @keyframes pulse-glow-break {
+    0%, 100% { filter: drop-shadow(0 0 4px var(--ring-glow-break)); }
+    50%       { filter: drop-shadow(0 0 10px var(--ring-glow-break)); }
+  }
+
+  .hidden { display: none !important; }
+
+  .ring-fill.ticking { animation: pulse-glow 2s ease-in-out infinite; }
+  .ring-fill.ticking.break-mode { animation: pulse-glow-break 2s ease-in-out infinite; }
+
+  /* Transition flash on phase change */
+  @keyframes flash {
+    0% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+  .flash { animation: flash 0.5s ease; }
+
+  /* Stats panel */
+  .stats-toggle {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--title);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.2s;
+    margin-top: 4px;
+  }
+  .stats-toggle:hover { color: var(--face); }
+
+  .stats-panel {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 16px;
+    padding: 20px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .stats-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ring-work);
+    opacity: 0.9;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    text-align: center;
+  }
+
+  .stat-item {}
+
+  .stat-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--face);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--title);
+    margin-top: 4px;
+  }
+
+  .stats-divider {
+    width: 100%;
+    height: 1px;
+    background: rgba(255,255,255,0.07);
+  }
+
+  .stats-footer {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .stats-week-mins {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 300;
+    color: var(--title);
+    letter-spacing: 0.08em;
+  }
+
+  .stats-week-mins span {
+    color: var(--ring-break);
+    font-weight: 500;
+  }
+
+  .clear-btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.2);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  .clear-btn:hover { color: rgba(255,255,255,0.5); }
+
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <div class="header">
+    <div class="event-label">Focus Session</div>
+    <div class="event-title">Pomodoro Timer</div>
+    <div class="divider" id="header-divider"></div>
+  </div>
+
+  <!-- Mode selector -->
+  <div class="mode-selector">
+    <button class="mode-btn active" data-work="25" data-break="5">25 / 5</button>
+    <button class="mode-btn" data-work="40" data-break="10">40 / 10</button>
+    <button class="mode-btn" data-work="60" data-break="20">60 / 20</button>
+  </div>
+
+  <!-- Big ring -->
+  <div class="main-ring-area" id="ring-area">
+    <div class="ring-container">
+      <svg viewBox="0 0 220 220">
+        <circle class="ring-track" cx="110" cy="110" r="100"/>
+        <circle class="ring-fill" id="main-ring" cx="110" cy="110" r="100"
+          stroke-dasharray="628.32"
+          stroke-dashoffset="0"/>
+      </svg>
+      <div class="face">
+        <div class="phase-badge" id="phase-badge">Work</div>
+        <div class="time-display" id="time-display">25:00</div>
+        <div class="session-label" id="session-label">Session 1 of 4</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl-btn" id="reset-btn">Reset</button>
+      <button class="ctrl-btn primary" id="start-btn">Start</button>
+      <button class="ctrl-btn primary hidden" id="break-btn">Start Break</button>
+      <button class="ctrl-btn" id="skip-btn">Skip</button>
+    </div>
+
+    <div class="sessions-row" id="sessions-row"></div>
+  </div>
+
+  <div class="footer">
+    <div class="target-date">Mode: <span id="mode-display">25 min work · 5 min break</span></div>
+  </div>
+
+
+  <!-- Stats toggle & panel -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+    <button class="stats-toggle" id="stats-toggle">▾ Sessions</button>
+    <div class="stats-panel hidden" id="stats-panel">
+      <div class="stats-title">Focus History</div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-num" id="stat-today">0</div>
+          <div class="stat-label">Today</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num" id="stat-week">0</div>
+          <div class="stat-label">Week</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num" id="stat-month">0</div>
+          <div class="stat-label">Month</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num" id="stat-year">0</div>
+          <div class="stat-label">Year</div>
+        </div>
+      </div>
+      <div class="stats-divider"></div>
+      <div class="stats-footer">
+        <div class="stats-week-mins">This week: <span id="stat-mins">0 min</span> focused</div>
+        <button class="clear-btn" id="clear-history">Clear</button>
+      </div>
+    </div>
+  </div>
+
+
+</div>
+
+<script>
+  const CIRCUM = 628.32;
+
+  // ── STATE ───────────────────────────────────────────────
+  let workMins      = 25;
+  let breakMins     = 5;
+  let totalSessions = 4;
+  let currentSession = 1;
+  let isBreak       = false;
+  let running       = false;
+  let secondsLeft   = workMins * 60;
+  let totalSeconds  = workMins * 60;
+  let intervalId    = null;
+  let deadlineTs    = null;
+  let completedDots = [];
+
+  // ── ELEMENTS ─────────────────────────────────────────────
+  const ring      = document.getElementById('main-ring');
+  const timeEl    = document.getElementById('time-display');
+  const badgeEl   = document.getElementById('phase-badge');
+  const sessionEl = document.getElementById('session-label');
+  const startBtn  = document.getElementById('start-btn');
+  const breakBtn  = document.getElementById('break-btn');
+  const resetBtn  = document.getElementById('reset-btn');
+  const skipBtn   = document.getElementById('skip-btn');
+  const modeDisp  = document.getElementById('mode-display');
+  const dotsRow   = document.getElementById('sessions-row');
+  const divider   = document.getElementById('header-divider');
+
+  // ── LOCALSTORAGE KEYS ────────────────────────────────────
+  const KEY_STATE   = 'pomo_state';
+  const KEY_HISTORY = 'pomo_history';
+
+  // ── PERSISTENCE: SAVE / LOAD ─────────────────────────────
+  function saveState() {
+    const s = {
+      workMins, breakMins, totalSessions,
+      currentSession, isBreak, running,
+      secondsLeft, totalSeconds, deadlineTs,
+      completedDots
+    };
+    localStorage.setItem(KEY_STATE, JSON.stringify(s));
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(KEY_STATE);
+      if (!raw) return false;
+      const s = JSON.parse(raw);
+      workMins       = s.workMins;
+      breakMins      = s.breakMins;
+      totalSessions  = s.totalSessions;
+      currentSession = s.currentSession;
+      isBreak        = s.isBreak;
+      completedDots  = s.completedDots;
+      totalSeconds   = s.totalSeconds;
+      deadlineTs     = s.deadlineTs;
+
+      // If it was running, recalculate secondsLeft from saved deadline
+      if (s.running && s.deadlineTs) {
+        const remaining = Math.round((s.deadlineTs - Date.now()) / 1000);
+        if (remaining <= 0) {
+          // Phase ended while away — just show 0 and let user proceed
+          secondsLeft = 0;
+        } else {
+          secondsLeft = remaining;
+        }
+      } else {
+        secondsLeft = s.secondsLeft;
+      }
+      return true;
+    } catch(e) { return false; }
+  }
+
+  // ── SESSION HISTORY ──────────────────────────────────────
+  function logSession() {
+    let history = [];
+    try { history = JSON.parse(localStorage.getItem(KEY_HISTORY) || '[]'); } catch(e) {}
+    history.push({ ts: Date.now(), workMins });
+    localStorage.setItem(KEY_HISTORY, JSON.stringify(history));
+    renderStats();
+  }
+
+  function getHistory() {
+    try { return JSON.parse(localStorage.getItem(KEY_HISTORY) || '[]'); } catch(e) { return []; }
+  }
+
+  function startOf(unit) {
+    const d = new Date();
+    if (unit === 'day')   { d.setHours(0,0,0,0); }
+    if (unit === 'week')  { d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay()); }
+    if (unit === 'month') { d.setHours(0,0,0,0); d.setDate(1); }
+    if (unit === 'year')  { d.setHours(0,0,0,0); d.setMonth(0,1); }
+    return d.getTime();
+  }
+
+  function renderStats() {
+    const history = getHistory();
+    const now = Date.now();
+    const counts = {
+      today: history.filter(s => s.ts >= startOf('day')).length,
+      week:  history.filter(s => s.ts >= startOf('week')).length,
+      month: history.filter(s => s.ts >= startOf('month')).length,
+      year:  history.filter(s => s.ts >= startOf('year')).length,
+    };
+    document.getElementById('stat-today').textContent = counts.today;
+    document.getElementById('stat-week').textContent  = counts.week;
+    document.getElementById('stat-month').textContent = counts.month;
+    document.getElementById('stat-year').textContent  = counts.year;
+
+    // Total focus minutes this week
+    const weekMins = getHistory()
+      .filter(s => s.ts >= startOf('week'))
+      .reduce((sum, s) => sum + (s.workMins || 25), 0);
+    document.getElementById('stat-mins').textContent = weekMins + ' min';
+  }
+
+  // ── DOTS ─────────────────────────────────────────────────
+  function buildDots() {
+    dotsRow.innerHTML = '';
+    completedDots = [];
+    for (let i = 0; i < totalSessions; i++) {
+      const d = document.createElement('div');
+      d.className = 'session-dot';
+      dotsRow.appendChild(d);
+      completedDots.push(false);
+    }
+  }
+
+  function syncDots() {
+    dotsRow.innerHTML = '';
+    for (let i = 0; i < totalSessions; i++) {
+      const d = document.createElement('div');
+      d.className = 'session-dot' + (completedDots[i] ? ' done' : '');
+      dotsRow.appendChild(d);
+    }
+  }
+
+  function updateDots() {
+    const dots = dotsRow.querySelectorAll('.session-dot');
+    dots.forEach((d, i) => {
+      d.classList.toggle('done', !!completedDots[i]);
+    });
+  }
+
+  // ── UI ────────────────────────────────────────────────────
+  function formatTime(secs) {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function setBreakMode(on) {
+    isBreak = on;
+    ring.classList.toggle('break-mode', on);
+    badgeEl.classList.toggle('break-mode', on);
+    startBtn.classList.toggle('break-mode', on);
+    divider.style.background = on ? 'var(--ring-break)' : 'var(--ring-work)';
+    badgeEl.textContent = on ? 'Break' : 'Work';
+    document.getElementById('ring-area').classList.add('flash');
+    setTimeout(() => document.getElementById('ring-area').classList.remove('flash'), 500);
+  }
+
+  function updateUI() {
+    timeEl.textContent = formatTime(secondsLeft);
+    const pct = secondsLeft / totalSeconds;
+    ring.style.strokeDashoffset = CIRCUM * (1 - pct);
+    sessionEl.textContent = isBreak
+      ? `Break after session ${currentSession}`
+      : `Session ${currentSession} of ${totalSessions}`;
+  }
+
+  function syncModeButtons() {
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      const match = parseInt(btn.dataset.work) === workMins;
+      btn.classList.toggle('active', match);
+    });
+    modeDisp.textContent = `${workMins} min work · ${breakMins} min break`;
+  }
+
+  // ── CHIME ─────────────────────────────────────────────────
+  function playChime() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [
+        { freq: 523.25, t: 0.0 },
+        { freq: 659.25, t: 0.3 },
+        { freq: 783.99, t: 0.6 },
+        { freq: 1046.5, t: 1.1 },
+        { freq: 1318.5, t: 1.5 },
+        { freq: 1567.98,t: 1.9 },
+      ];
+      notes.forEach(({ freq, t }) => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        const s = ctx.currentTime + t;
+        gain.gain.setValueAtTime(0, s);
+        gain.gain.linearRampToValueAtTime(0.15, s + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, s + 5.0 - t);
+        osc.start(s);
+        osc.stop(s + 5.0 - t);
+      });
+    } catch(e) {}
+  }
+
+  // ── TIMER LOGIC ───────────────────────────────────────────
+  function nextPhase() {
+    playChime();
+    if (!isBreak) {
+      completedDots[currentSession - 1] = true;
+      updateDots();
+      logSession(); // record completed work session
+      stop();
+      if (currentSession >= totalSessions) {
+        setBreakMode(false);
+        currentSession = 1;
+        buildDots();
+        secondsLeft = workMins * 60;
+        totalSeconds = workMins * 60;
+        updateUI();
+        saveState();
+        return;
+      }
+      setBreakMode(true);
+      secondsLeft = breakMins * 60;
+      totalSeconds = breakMins * 60;
+      updateUI();
+      startBtn.classList.add('hidden');
+      breakBtn.classList.remove('hidden');
+    } else {
+      stop();
+      currentSession++;
+      setBreakMode(false);
+      secondsLeft = workMins * 60;
+      totalSeconds = workMins * 60;
+      updateUI();
+    }
+    saveState();
+  }
+
+  function tick() {
+    const remaining = Math.round((deadlineTs - Date.now()) / 1000);
+    if (remaining <= 0) {
+      secondsLeft = 0;
+      updateUI();
+      nextPhase();
+      return;
+    }
+    secondsLeft = remaining;
+    updateUI();
+    saveState();
+  }
+
+  function start() {
+    if (running) {
+      stop();
+      startBtn.textContent = 'Resume';
+      saveState();
+      return;
+    }
+    running = true;
+    deadlineTs = Date.now() + secondsLeft * 1000;
+    ring.classList.add('ticking');
+    startBtn.textContent = 'Pause';
+    startBtn.style.opacity = '';
+    startBtn.style.cursor = '';
+    intervalId = setInterval(tick, 500);
+    saveState();
+  }
+
+  function stop() {
+    running = false;
+    ring.classList.remove('ticking');
+    startBtn.textContent = 'Start';
+    startBtn.style.opacity = '';
+    startBtn.style.cursor = '';
+    startBtn.classList.remove('hidden');
+    breakBtn.classList.add('hidden');
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+
+  function reset() {
+    stop();
+    currentSession = 1;
+    isBreak = false;
+    setBreakMode(false);
+    secondsLeft = workMins * 60;
+    totalSeconds = workMins * 60;
+    buildDots();
+    updateUI();
+    saveState();
+  }
+
+  // ── INIT ─────────────────────────────────────────────────
+  const restored = loadState();
+  if (restored) {
+    syncModeButtons();
+    syncDots();
+    setBreakMode(isBreak);
+    updateUI();
+    // If it was running when they left, show Resume state
+    if (secondsLeft > 0) {
+      startBtn.textContent = 'Resume';
+    } else {
+      nextPhase(); // phase ended while away
+    }
+  } else {
+    buildDots();
+    updateUI();
+    modeDisp.textContent = `${workMins} min work · ${breakMins} min break`;
+  }
+  renderStats();
+
+  // ── EVENTS ───────────────────────────────────────────────
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      workMins      = parseInt(btn.dataset.work);
+      breakMins     = parseInt(btn.dataset.break);
+      totalSessions = workMins === 25 ? 4 : workMins === 40 ? 3 : 2;
+      modeDisp.textContent = `${workMins} min work · ${breakMins} min break`;
+      reset();
+    });
+  });
+
+  startBtn.addEventListener('click', start);
+  breakBtn.addEventListener('click', () => {
+    breakBtn.classList.add('hidden');
+    startBtn.classList.remove('hidden');
+    start();
+  });
+  resetBtn.addEventListener('click', reset);
+  skipBtn.addEventListener('click', () => {
+    if (!running) return;
+    secondsLeft = 0;
+    nextPhase();
+  });
+
+  // Stats panel toggle
+  document.getElementById('stats-toggle').addEventListener('click', () => {
+    const panel = document.getElementById('stats-panel');
+    panel.classList.toggle('hidden');
+  });
+
+  // Clear history
+  document.getElementById('clear-history').addEventListener('click', () => {
+    if (confirm('Clear all session history?')) {
+      localStorage.removeItem(KEY_HISTORY);
+      renderStats();
+    }
+  });
+</script>
+
+</body>
+</html>
