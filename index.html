@@ -389,7 +389,7 @@
 
   .stat-num {
     font-family: 'Playfair Display', serif;
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 700;
     color: var(--face);
     line-height: 1;
@@ -442,6 +442,73 @@
     transition: color 0.2s;
   }
   .clear-btn:hover { color: rgba(255,255,255,0.5); }
+
+
+  .history-list {
+    width: 100%;
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
+  }
+
+  .history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    gap: 12px;
+  }
+
+  .history-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .history-date {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 300;
+    letter-spacing: 0.06em;
+    color: var(--title);
+  }
+
+  .history-mins {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--ring-break);
+    letter-spacing: 0.06em;
+  }
+
+  .history-remove {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.2);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: color 0.2s;
+    flex-shrink: 0;
+  }
+  .history-remove:hover { color: rgba(255,255,255,0.6); }
+
+  .history-empty {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    color: var(--title);
+    text-align: center;
+    padding: 8px;
+    opacity: 0.6;
+    letter-spacing: 0.1em;
+  }
 
 </style>
 </head>
@@ -516,6 +583,8 @@
           <div class="stat-label">Year</div>
         </div>
       </div>
+      <div class="stats-divider"></div>
+      <div class="history-list" id="history-list"></div>
       <div class="stats-divider"></div>
       <div class="stats-footer">
         <div class="stats-week-mins">This week: <span id="stat-mins">0 min</span> focused</div>
@@ -623,25 +692,67 @@
     return d.getTime();
   }
 
+  function fmtTime(mins) {
+    if (mins < 60) return mins + ' min';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m === 0 ? h + 'h' : h + 'h ' + m + 'm';
+  }
+
   function renderStats() {
     const history = getHistory();
-    const now = Date.now();
-    const counts = {
-      today: history.filter(s => s.ts >= startOf('day')).length,
-      week:  history.filter(s => s.ts >= startOf('week')).length,
-      month: history.filter(s => s.ts >= startOf('month')).length,
-      year:  history.filter(s => s.ts >= startOf('year')).length,
-    };
-    document.getElementById('stat-today').textContent = counts.today;
-    document.getElementById('stat-week').textContent  = counts.week;
-    document.getElementById('stat-month').textContent = counts.month;
-    document.getElementById('stat-year').textContent  = counts.year;
+    function minsFor(unit) {
+      return history.filter(s => s.ts >= startOf(unit)).reduce((sum, s) => sum + (s.workMins || 25), 0);
+    }
+    document.getElementById('stat-today').textContent = fmtTime(minsFor('day'));
+    document.getElementById('stat-week').textContent  = fmtTime(minsFor('week'));
+    document.getElementById('stat-month').textContent = fmtTime(minsFor('month'));
+    document.getElementById('stat-year').textContent  = fmtTime(minsFor('year'));
 
-    // Total focus minutes this week
-    const weekMins = getHistory()
-      .filter(s => s.ts >= startOf('week'))
-      .reduce((sum, s) => sum + (s.workMins || 25), 0);
-    document.getElementById('stat-mins').textContent = weekMins + ' min';
+    // Total focus minutes this week for footer
+    const weekMins = minsFor('week');
+    document.getElementById('stat-mins').textContent = fmtTime(weekMins);
+
+    // Render history list
+    renderHistoryList();
+  }
+
+  function renderHistoryList() {
+    const history = getHistory();
+    const list = document.getElementById('history-list');
+    if (!list) return;
+    if (history.length === 0) {
+      list.innerHTML = '<div class="history-empty">No sessions yet</div>';
+      return;
+    }
+    // Show most recent 10
+    const recent = [...history].reverse().slice(0, 10);
+    list.innerHTML = recent.map((s, i) => {
+      const d = new Date(s.ts);
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const realIdx = history.length - 1 - i;
+      return '<div class="history-item">' +
+        '<div class="history-info">' +
+          '<span class="history-date">' + dateStr + ' · ' + timeStr + '</span>' +
+          '<span class="history-mins">' + (s.workMins || 25) + ' min</span>' +
+        '</div>' +
+        '<button class="history-remove" data-idx="' + realIdx + '">×</button>' +
+      '</div>';
+    }).join('');
+    list.querySelectorAll('.history-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        removeSession(idx);
+      });
+    });
+  }
+
+  function removeSession(idx) {
+    let history = getHistory();
+    history.splice(idx, 1);
+    localStorage.setItem(KEY_HISTORY, JSON.stringify(history));
+    renderStats();
   }
 
   // ── DOTS ─────────────────────────────────────────────────
@@ -737,12 +848,12 @@
   }
 
   // ── TIMER LOGIC ───────────────────────────────────────────
-  function nextPhase() {
+  function nextPhase(skipped) {
     playChime();
     if (!isBreak) {
       completedDots[currentSession - 1] = true;
       updateDots();
-      logSession(); // record completed work session
+      if (!skipped) logSession(); // only log natural completions
       stop();
       if (currentSession >= totalSessions) {
         setBreakMode(false);
@@ -776,7 +887,7 @@
     if (remaining <= 0) {
       secondsLeft = 0;
       updateUI();
-      nextPhase();
+      nextPhase(false);
       return;
     }
     secondsLeft = remaining;
@@ -868,7 +979,7 @@
   skipBtn.addEventListener('click', () => {
     if (!running) return;
     secondsLeft = 0;
-    nextPhase();
+    nextPhase(true); // skipped = true, don't log
   });
 
   // Stats panel toggle
